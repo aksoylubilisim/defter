@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
-  Plus, 
   X, 
   Loader2,
   Phone,

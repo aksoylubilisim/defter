@@ -1,0 +1,83 @@
+name: Deploy Defter to VPS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "dist/kernel/**"
+      - "dist/admin/**"
+      - "dist/client/**"
+      - "dist/web/**"
+
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Defter to VPS
+    runs-on: ubuntu-latest
+    environment: secrets
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy Test to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          script: |
+            set -e
+            echo "🚀 Starting deployment...💪"
+
+            cd ${{ secrets.VPS_DEPLOY_PATH }}/src
+
+            echo "📥 Pulling latest code..."
+            git fetch origin && git reset --hard origin/main
+
+
+            echo "🚚 Deploying AdminPanel..."
+            rm -r ${{ secrets.VPS_DEPLOY_PATH }}/adminpanel/*
+            cp -r ${{ secrets.VPS_DEPLOY_PATH }}/src/test/adminpanel/* ${{ secrets.VPS_DEPLOY_PATH }}/adminpanel/
+
+            echo "🚚 Deploying Client..."
+            rm -r ${{ secrets.VPS_DEPLOY_PATH }}/client/*
+            cp -r ${{ secrets.VPS_DEPLOY_PATH }}/src/test/client/* ${{ secrets.VPS_DEPLOY_PATH }}/client/
+
+            echo "🚚 Deploying Service Mobile PWA..."
+            rm -r ${{ secrets.VPS_DEPLOY_PATH }}/servicemobile/*
+            cp -r ${{ secrets.VPS_DEPLOY_PATH }}/src/test/servicemobile/* ${{ secrets.VPS_DEPLOY_PATH }}/servicemobile/
+
+            echo "🚚 Deploying Kernel..."
+            cp -r ${{ secrets.VPS_DEPLOY_PATH }}/src/test/kernel/* ${{ secrets.VPS_DEPLOY_PATH }}/kernel/
+
+
+            echo "🔄 Restarting Kernel service..."
+            echo "${{ secrets.VPS_PASSWORD }}" | sudo -S pm2 restart core312
+
+            TOTAL_SECONDS=22
+
+            (for i in $(seq 1 $TOTAL_SECONDS); do echo -n "."; sleep 1; done) | pv -s $TOTAL_SECONDS -S -F '%t %p' > /dev/null
+
+            echo "" 
+
+            # Health check
+            echo "🏥 Running health check..."
+            TOTAL_SECONDS=5
+            (for i in $(seq 1 $TOTAL_SECONDS); do echo -n "."; sleep 1; done) | pv -s $TOTAL_SECONDS -S -F '%t %p' > /dev/null
+
+            curl -f http://localhost:6680 || exit 1
+
+            echo "✅ Defter Deployment completed successfully!"
+            /bin/bash ${{ secrets.VPS_DEPLOY_PATH }}/polotestsms.sh
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "✅ Defter Test App deployed successfully to VPS"
+          else
+            echo "❌ Defter Test App deployment failed"
+          fi
