@@ -1,20 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { getDeviceId } from '../utils/deviceId';
-import { Lock, User, Terminal } from 'lucide-react';
+import { Lock, User, Terminal, Loader2 } from 'lucide-react';
+import { apiFetch } from '../utils/api';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [deviceId, setDeviceId] = useState('');
 
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
   useEffect(() => {
     setDeviceId(getDeviceId());
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Login attempt:', { username, password, deviceId });
-    // TODO: Implement login logic with kernel
+    setError('');
+    setLoading(true);
+    try {
+      const data = await apiFetch('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password, deviceId }),
+      });
+      localStorage.setItem('admin_token', data.token);
+      localStorage.setItem('admin_user', JSON.stringify(data.user));
+      window.location.href = '/dashboard';
+    } catch (err: any) {
+      setError(err.message || 'Giriş yapılamadı');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -33,6 +50,13 @@ const Login: React.FC = () => {
           <h1 className="text-4xl font-heading font-bold text-white tracking-tight">Defter Admin</h1>
           <p className="text-muted-foreground mt-2 font-sans">Giriş yapmak için bilgilerinizi girin</p>
         </div>
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-sm flex items-center gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
@@ -68,9 +92,10 @@ const Login: React.FC = () => {
           <div className="pt-2">
             <button
               type="submit"
-              className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-primary/25 active:scale-[0.98]"
+              disabled={loading}
+              className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-primary/25 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              Giriş Yap
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Giriş Yap'}
             </button>
           </div>
         </form>
